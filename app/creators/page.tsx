@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AddCreatorDialog } from "@/components/creators/add-creator-dialog";
+import { DeleteCreatorButton } from "@/components/creators/delete-creator-button";
 
 export default async function CreatorsPage() {
   const creators = await prisma.creator.findMany({
@@ -44,13 +45,14 @@ export default async function CreatorsPage() {
               <TableHead className="text-right">Accounts</TableHead>
               <TableHead className="text-right">Follower gesamt</TableHead>
               <TableHead className="text-right">Posts gesamt</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {creators.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="text-center text-sm text-muted-foreground"
                 >
                   Noch keine Creators angelegt.
@@ -84,6 +86,13 @@ export default async function CreatorsPage() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatNumber(totalPosts)}
+                  </TableCell>
+                  <TableCell>
+                    <DeleteCreatorButton
+                      creatorId={creator.id}
+                      creatorName={creator.name}
+                      accountCount={creator.accounts.length}
+                    />
                   </TableCell>
                 </TableRow>
               );

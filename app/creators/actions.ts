@@ -20,3 +20,18 @@ export async function createCreator(formData: FormData): Promise<ActionResult> {
   revalidatePath("/creators");
   return { success: true };
 }
+
+export async function deleteCreator(creatorId: string): Promise<ActionResult> {
+  try {
+    // Cascades through Accounts -> Posts -> daily metrics (see schema.prisma
+    // onDelete: Cascade). LinkClickImport rows are kept but unlinked
+    // (onDelete: SetNull) rather than deleted, since imported click history
+    // has value independent of whether the account still exists.
+    await prisma.creator.delete({ where: { id: creatorId } });
+  } catch {
+    return { error: "Creator konnte nicht gelöscht werden." };
+  }
+
+  revalidatePath("/creators");
+  return { success: true };
+}

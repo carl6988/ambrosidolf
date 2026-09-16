@@ -37,7 +37,7 @@ model Creator {
 model Account {
   id          String   @id @default(cuid())
   creatorId   String
-  creator     Creator  @relation(fields: [creatorId], references: [id])
+  creator     Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   username    String   @unique
   displayName String
   profileUrl  String
@@ -57,7 +57,7 @@ model Account {
 model Post {
   id             String    @id @default(cuid())
   accountId      String
-  account        Account   @relation(fields: [accountId], references: [id])
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   externalPostId String?
   url            String
   caption        String?
@@ -76,7 +76,7 @@ model Post {
 model PostDailyMetric {
   id       String   @id @default(cuid())
   postId   String
-  post     Post     @relation(fields: [postId], references: [id])
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   date     DateTime
   views    Int
   likes    Int
@@ -93,7 +93,7 @@ model PostDailyMetric {
 model AccountDailyMetric {
   id         String   @id @default(cuid())
   accountId  String
-  account    Account  @relation(fields: [accountId], references: [id])
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   date       DateTime
   followers  Int
   totalViews Int?
@@ -104,9 +104,9 @@ model AccountDailyMetric {
 model LinkClickImport {
   id           String   @id @default(cuid())
   accountId    String?
-  account      Account? @relation(fields: [accountId], references: [id])
+  account      Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   postId       String?
-  post         Post?    @relation(fields: [postId], references: [id])
+  post         Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
   date         DateTime
   clicks       Int
   uniqueClicks Int?
