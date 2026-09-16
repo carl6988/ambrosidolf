@@ -60,6 +60,7 @@ model CreatorPhoneLogin {
   creatorId           String
   creator             Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   phoneLabel          String
+  phoneNumber         String?
   phoneOwner          String?
   media               String?
   accountUsername     String?

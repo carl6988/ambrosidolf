@@ -19,6 +19,7 @@ import { upsertPhoneLogin } from "@/app/creators/[id]/management/actions";
 export type PhoneLoginValues = {
   id: string;
   phoneLabel: string;
+  phoneNumber: string | null;
   phoneOwner: string | null;
   media: string | null;
   accountUsername: string | null;
@@ -32,6 +33,7 @@ export type PhoneLoginValues = {
 
 const FIELDS: { name: keyof PhoneLoginValues; label: string; required?: boolean }[] = [
   { name: "phoneLabel", label: "Phone #", required: true },
+  { name: "phoneNumber", label: "Phone Number" },
   { name: "phoneOwner", label: "Phone Owner" },
   { name: "media", label: "Media" },
   { name: "accountUsername", label: "Account on Phone" },

@@ -92,6 +92,7 @@ export async function upsertPhoneLogin(formData: FormData): Promise<ActionResult
 
   const data = {
     phoneLabel,
+    phoneNumber: textOrNull(formData, "phoneNumber"),
     phoneOwner: textOrNull(formData, "phoneOwner"),
     media: textOrNull(formData, "media"),
     accountUsername: textOrNull(formData, "accountUsername"),

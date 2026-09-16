@@ -211,6 +211,7 @@ export default async function CreatorManagementPage({
             <TableHeader>
               <TableRow>
                 <TableHead className="whitespace-nowrap">Phone #</TableHead>
+                <TableHead className="whitespace-nowrap">Phone Number</TableHead>
                 <TableHead className="whitespace-nowrap">Phone Owner</TableHead>
                 <TableHead className="whitespace-nowrap">Media</TableHead>
                 <TableHead className="whitespace-nowrap">Account on Phone</TableHead>
@@ -226,7 +227,7 @@ export default async function CreatorManagementPage({
             <TableBody>
               {creator.phoneLogins.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center text-sm text-muted-foreground">
                     Noch keine Logins erfasst.
                   </TableCell>
                 </TableRow>
@@ -238,6 +239,7 @@ export default async function CreatorManagementPage({
                     <TableCell className="whitespace-nowrap font-medium">
                       {login.phoneLabel}
                     </TableCell>
+                    <TableCell className="whitespace-nowrap">{login.phoneNumber || "–"}</TableCell>
                     <TableCell className="whitespace-nowrap">{login.phoneOwner || "–"}</TableCell>
                     <TableCell className="whitespace-nowrap">{login.media || "–"}</TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -281,6 +283,7 @@ export default async function CreatorManagementPage({
                           existing={{
                             id: login.id,
                             phoneLabel: login.phoneLabel,
+                            phoneNumber: login.phoneNumber,
                             phoneOwner: login.phoneOwner,
                             media: login.media,
                             accountUsername: login.accountUsername,
