@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { DeleteAccountButton } from "@/components/accounts/delete-account-button";
 import { PostsTargetValue } from "@/components/accounts/posts-target-value";
@@ -159,9 +160,16 @@ export default async function CreatorDetailPage({
 
       <div className="mt-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {creator.name}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {creator.name}
+            </h1>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/creators/${creator.id}/management`}>
+                Management Overview
+              </Link>
+            </Button>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {creator.accounts.length} Account
             {creator.accounts.length === 1 ? "" : "s"}

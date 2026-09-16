@@ -31,7 +31,26 @@ model Creator {
   name      String
   createdAt DateTime @default(now())
 
-  accounts Account[]
+  accounts         Account[]
+  managementFields CreatorManagementField[]
+}
+
+// Free-form cells for the per-Creator "Management Overview" sheet (Instagram
+// account health, content capacity, ...). One row per fixed field key (see
+// MANAGEMENT_FIELDS in app/creators/[id]/management/fields.ts) — value/
+// accountNames/note are plain text since some rows hold non-numeric answers
+// (e.g. "Maybe with Editor").
+model CreatorManagementField {
+  id           String   @id @default(cuid())
+  creatorId    String
+  creator      Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  key          String
+  value        String?
+  accountNames String?
+  note         String?
+  updatedAt    DateTime @updatedAt
+
+  @@unique([creatorId, key])
 }
 
 model Account {
