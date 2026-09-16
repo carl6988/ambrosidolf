@@ -37,6 +37,29 @@ export async function createAccount(
   return { success: true };
 }
 
+export async function deleteAccount(accountId: string): Promise<ActionResult> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { creatorId: true },
+  });
+  if (!account) {
+    return { error: "Account nicht gefunden." };
+  }
+
+  try {
+    // Cascades through Posts -> daily metrics (see schema.prisma
+    // onDelete: Cascade). LinkClickImport rows are kept but unlinked
+    // (onDelete: SetNull) rather than deleted.
+    await prisma.account.delete({ where: { id: accountId } });
+  } catch {
+    return { error: "Account konnte nicht gelöscht werden." };
+  }
+
+  revalidatePath(`/creators/${account.creatorId}`);
+  revalidatePath("/accounts");
+  return { success: true };
+}
+
 export async function updateAccountSltBio(
   formData: FormData
 ): Promise<ActionResult> {

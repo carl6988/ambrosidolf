@@ -25,6 +25,10 @@ export type PostTableRow = {
     likes: number;
     comments: number;
   } | null;
+  // Only set when a table mixes posts from several accounts (e.g. a
+  // Creator's "Top Reels" across all their profiles) — overrides the
+  // table-level `accountId` for this row's link and adds an Account column.
+  account?: { id: string; username: string };
 };
 
 type SortField = "postedAt" | "views" | "likes" | "comments" | "engagement";
@@ -55,14 +59,18 @@ export function PostsTable({
   title,
   headerAction,
   emptyMessage = "Keine Reels gefunden.",
+  defaultSortField = "postedAt",
+  showAccountColumn = false,
 }: {
   accountId: string;
   posts: PostTableRow[];
   title: string;
   headerAction?: ReactNode;
   emptyMessage?: string;
+  defaultSortField?: SortField;
+  showAccountColumn?: boolean;
 }) {
-  const [sortField, setSortField] = useState<SortField>("postedAt");
+  const [sortField, setSortField] = useState<SortField>(defaultSortField);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   function handleSort(field: SortField) {
@@ -124,6 +132,7 @@ export function PostsTable({
           <TableHeader>
             <TableRow>
               <TableHead>Reel</TableHead>
+              {showAccountColumn && <TableHead>Account</TableHead>}
               <SortableHead field="postedAt" label="Datum" />
               <SortableHead field="views" label="Views" />
               <SortableHead field="likes" label="Likes" />
@@ -135,7 +144,7 @@ export function PostsTable({
             {sortedPosts.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={showAccountColumn ? 7 : 6}
                   className="text-center text-sm text-muted-foreground"
                 >
                   {emptyMessage}
@@ -145,12 +154,13 @@ export function PostsTable({
             {sortedPosts.map((post) => {
               const metric = post.metric;
               const engagement = metric && metric.likes + metric.comments;
+              const rowAccountId = post.account?.id ?? accountId;
               return (
                 <TableRow key={post.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/accounts/${accountId}/posts/${post.id}`}
+                        href={`/accounts/${rowAccountId}/posts/${post.id}`}
                         className="flex items-center gap-3"
                       >
                         {post.thumbnailUrl ? (
@@ -178,6 +188,20 @@ export function PostsTable({
                       </a>
                     </div>
                   </TableCell>
+                  {showAccountColumn && (
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {post.account ? (
+                        <Link
+                          href={`/accounts/${post.account.id}`}
+                          className="hover:text-foreground hover:underline"
+                        >
+                          @{post.account.username}
+                        </Link>
+                      ) : (
+                        "–"
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {formatDate(post.postedAt)}
                   </TableCell>

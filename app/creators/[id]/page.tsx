@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formatNumber } from "@/lib/format";
+import { formatDate, formatDelta, formatNumber, formatPercent } from "@/lib/format";
+import { RANGE_OPTIONS, resolveDateRange, type RangeKey } from "@/lib/date-range";
 import {
   Table,
   TableBody,
@@ -11,13 +12,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
+import { DeleteAccountButton } from "@/components/accounts/delete-account-button";
+import { ViewsChart } from "@/components/accounts/views-chart";
+import { PostsTable, type PostTableRow } from "@/components/accounts/posts-table";
+import { StatsRangePicker } from "@/components/accounts/stats-range-picker";
 
 export default async function CreatorDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { range?: string; from?: string; to?: string };
 }) {
+  const rangeKey: RangeKey = isRangeKey(searchParams.range) ? searchParams.range : "this_week";
+  const { start: rangeStart, end: rangeEnd } = resolveDateRange(
+    rangeKey,
+    searchParams.from,
+    searchParams.to
+  );
+  // See app/accounts/[id]/page.tsx for why this is exclusive.
+  const rangeEndExclusive = new Date(rangeEnd);
+  rangeEndExclusive.setUTCDate(rangeEndExclusive.getUTCDate() + 1);
+
   const creator = await prisma.creator.findUnique({
     where: { id: params.id },
     include: {
@@ -32,6 +50,101 @@ export default async function CreatorDetailPage({
   });
 
   if (!creator) notFound();
+
+  const rangeLabel =
+    rangeKey === "custom"
+      ? `${formatDate(rangeStart)} – ${formatDate(rangeEnd)}`
+      : RANGE_OPTIONS.find((o) => o.key === rangeKey)?.label ?? "";
+
+  // Reels across all of this Creator's accounts in the selected range — the
+  // same rows power the stats cards, the chart, and the Top Reels table
+  // below, so switching the range never triggers a new query shape.
+  const reels = await prisma.post.findMany({
+    where: {
+      account: { creatorId: creator.id },
+      mediaType: "REEL",
+      postedAt: { gte: rangeStart, lt: rangeEndExclusive },
+    },
+    orderBy: { postedAt: "desc" },
+    include: {
+      dailyMetrics: { orderBy: { date: "desc" }, take: 1 },
+      account: { select: { id: true, username: true } },
+    },
+  });
+
+  // "Follower gesamt" always reflects each account's latest known value,
+  // independent of the selected stats range.
+  const latestMetricsPerAccount = await prisma.accountDailyMetric.findMany({
+    where: { account: { creatorId: creator.id } },
+    orderBy: { date: "desc" },
+    distinct: ["accountId"],
+  });
+  const totalFollowers = latestMetricsPerAccount.reduce(
+    (sum, m) => sum + m.followers,
+    0
+  );
+
+  const rangeMetrics = await prisma.accountDailyMetric.findMany({
+    where: { account: { creatorId: creator.id }, date: { gte: rangeStart, lt: rangeEndExclusive } },
+    orderBy: { date: "asc" },
+  });
+  const metricsByAccount = new Map<string, typeof rangeMetrics>();
+  for (const m of rangeMetrics) {
+    const list = metricsByAccount.get(m.accountId) ?? [];
+    list.push(m);
+    metricsByAccount.set(m.accountId, list);
+  }
+  let newFollowers = 0;
+  let hasFollowerDelta = false;
+  for (const list of Array.from(metricsByAccount.values())) {
+    if (list.length < 2) continue;
+    hasFollowerDelta = true;
+    newFollowers += list[list.length - 1].followers - list[0].followers;
+  }
+
+  const linkClicksAgg = await prisma.linkClickImport.aggregate({
+    where: {
+      date: { gte: rangeStart, lt: rangeEndExclusive },
+      OR: [
+        { account: { creatorId: creator.id } },
+        { post: { account: { creatorId: creator.id } } },
+      ],
+    },
+    _sum: { clicks: true },
+  });
+  const linkClicksInRange = linkClicksAgg._sum.clicks ?? 0;
+
+  const postRows: PostTableRow[] = reels.map((post) => {
+    const metric = post.dailyMetrics[0];
+    return {
+      id: post.id,
+      url: post.url,
+      caption: post.caption,
+      postedAt: post.postedAt.toISOString(),
+      thumbnailUrl: post.thumbnailUrl,
+      metric: metric
+        ? { views: metric.views, likes: metric.likes, comments: metric.comments }
+        : null,
+      account: { id: post.account.id, username: post.account.username },
+    };
+  });
+
+  const viewsInRange = postRows.reduce((sum, row) => sum + (row.metric?.views ?? 0), 0);
+
+  const topReels = [...postRows]
+    .sort((a, b) => (b.metric?.views ?? 0) - (a.metric?.views ?? 0))
+    .slice(0, 10);
+
+  // Same rows as the Top Reels table, just grouped by post day instead of
+  // listed per-post.
+  const viewsByPostDay = new Map<string, number>();
+  for (const row of postRows) {
+    const day = row.postedAt.slice(0, 10);
+    viewsByPostDay.set(day, (viewsByPostDay.get(day) ?? 0) + (row.metric?.views ?? 0));
+  }
+  const chartData = Array.from(viewsByPostDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, views]) => ({ date, views }));
 
   return (
     <div className="p-8">
@@ -53,10 +166,101 @@ export default async function CreatorDetailPage({
             {creator.accounts.length === 1 ? "" : "s"}
           </p>
         </div>
+        <StatsRangePicker
+          currentRange={rangeKey}
+          currentFrom={searchParams.from ?? ""}
+          currentTo={searchParams.to ?? ""}
+        />
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Views</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">
+              {formatNumber(viewsInRange)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Follower gesamt</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">
+              {formatNumber(totalFollowers)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Neue Follower</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">
+              {hasFollowerDelta ? formatDelta(newFollowers) : "–"}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">
+              Link-Clicks (SLT.bio)
+            </div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">
+              {formatNumber(linkClicksInRange)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Posts</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">
+              {formatNumber(postRows.length)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">
+              Views → Link-Click Conversion
+            </div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">
+              {formatPercent(linkClicksInRange, viewsInRange)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="opacity-60">
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Neue Subs</div>
+            <div className="mt-1 text-sm font-medium text-muted-foreground">
+              Bald verfügbar
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="opacity-60">
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">
+              Link-Click → Sub Conversion
+            </div>
+            <div className="mt-1 text-sm font-medium text-muted-foreground">
+              Bald verfügbar
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="mt-6">
+        <CardContent className="p-4">
+          <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+            Views über Zeit · {rangeLabel}
+          </h2>
+          <ViewsChart data={chartData} />
+        </CardContent>
+      </Card>
+
+      <div className="mt-8 flex items-center justify-between">
+        <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
         <AddAccountDialog creatorId={creator.id} />
       </div>
 
-      <div className="mt-6 rounded-lg border border-border">
+      <div className="mt-4 rounded-lg border border-border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -64,13 +268,14 @@ export default async function CreatorDetailPage({
               <TableHead className="text-right">Follower aktuell</TableHead>
               <TableHead className="text-right">Views (24h)</TableHead>
               <TableHead className="text-right">Posts</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {creator.accounts.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="text-center text-sm text-muted-foreground"
                 >
                   Noch keine Accounts für diesen Creator angelegt.
@@ -101,12 +306,36 @@ export default async function CreatorDetailPage({
                   <TableCell className="text-right tabular-nums">
                     {formatNumber(account._count.posts)}
                   </TableCell>
+                  <TableCell>
+                    <DeleteAccountButton
+                      accountId={account.id}
+                      username={account.username}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       </div>
+
+      <PostsTable
+        accountId={creator.accounts[0]?.id ?? ""}
+        posts={topReels}
+        title="Top Reels"
+        emptyMessage="Keine Reels in diesem Zeitraum."
+        defaultSortField="views"
+        showAccountColumn
+      />
     </div>
+  );
+}
+
+function isRangeKey(value: string | undefined): value is RangeKey {
+  return (
+    !!value &&
+    ["today", "yesterday", "this_week", "last_week", "this_month", "last_month", "custom"].includes(
+      value
+    )
   );
 }
