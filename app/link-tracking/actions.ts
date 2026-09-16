@@ -2,70 +2,27 @@
 
 import Papa from "papaparse";
 import { revalidatePath } from "next/cache";
-import { fetchSltBioLinkClicks } from "@/lib/slt-bio";
-import {
-  ingestLinkClickEvents,
-  ingestLinkClickImportRow,
-} from "@/lib/ingest/link-clicks";
+import { runSltBioSync, type SyncResult, type SyncSummary } from "@/lib/slt-bio-sync";
+import { ingestLinkClickImportRow } from "@/lib/ingest/link-clicks";
 
-// Kept deliberately short: /v1/events on the upstream API gets slower
-// roughly linearly with the number of events in range and reliably times
-// out (502) past ~1000 events / ~20s — observed around a 3h window on this
-// account. Upserts make repeated overlapping syncs safe, so re-clicking
-// "Jetzt synchronisieren" often is cheap and catches up incrementally
-// rather than risking one large, slow request.
-const SYNC_LOOKBACK_HOURS = 3;
+export type { SyncResult, SyncSummary };
 
-export type SyncSummary = {
-  fetched: number;
-  matchedDays: number;
-  unmatchedDays: number;
-  unmatchedPageSlugs: string[];
-  partialFetchError: string | null;
-};
-export type SyncResult = { error: string } | { summary: SyncSummary };
+// Short lookback for the manual button — a quick recheck of recent activity.
+// The daily cron job (app/api/cron/sync-slt-bio) uses a much longer one to
+// cover the full gap since its last run.
+const MANUAL_SYNC_LOOKBACK_HOURS = 3;
 
 export async function syncSltBio(): Promise<SyncResult> {
-  if (!process.env.SLT_BIO_API_KEY) {
-    return { error: "SLT_BIO_API_KEY ist nicht konfiguriert (.env)." };
-  }
-
-  const since = new Date();
-  since.setUTCHours(since.getUTCHours() - SYNC_LOOKBACK_HOURS);
-
-  const { events, error: fetchError } = await fetchSltBioLinkClicks({
-    since: since.toISOString(),
+  const result = await runSltBioSync({
+    lookbackHours: MANUAL_SYNC_LOOKBACK_HOURS,
     maxPages: 5,
   });
 
-  // Even if pagination was cut short by a transient upstream error, ingest
-  // whatever was fetched before failing rather than discarding it — the
-  // next sync will pick up where this one left off (since is a fixed
-  // lookback window, not a persisted cursor).
-  if (events.length === 0 && fetchError) {
-    return { error: fetchError };
+  if ("summary" in result) {
+    revalidatePath("/link-tracking");
+    revalidatePath("/creators");
   }
-
-  const result = await ingestLinkClickEvents(
-    events.map((e) => ({
-      pageSlug: e.page_slug,
-      createdAt: e.created_at,
-      sessionId: e.session_id,
-    })),
-    "slt.bio"
-  );
-
-  revalidatePath("/link-tracking");
-  revalidatePath("/creators");
-  return {
-    summary: {
-      fetched: events.length,
-      matchedDays: result.matchedDays,
-      unmatchedDays: result.unmatchedDays,
-      unmatchedPageSlugs: result.unmatchedPageSlugs,
-      partialFetchError: fetchError,
-    },
-  };
+  return result;
 }
 
 export type CsvImportSummary = {
