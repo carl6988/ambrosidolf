@@ -16,6 +16,16 @@ enum MediaType {
   CAROUSEL
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  // Only admins can create/remove other users (the "Team" page).
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
 model Creator {
   id        String   @id @default(cuid())
   name      String
