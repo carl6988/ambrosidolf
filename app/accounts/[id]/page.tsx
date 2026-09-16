@@ -37,6 +37,9 @@ export default async function AccountDetailPage({
   // Use an exclusive upper bound (start of the *next* day) everywhere instead.
   const rangeEndExclusive = new Date(rangeEnd);
   rangeEndExclusive.setUTCDate(rangeEndExclusive.getUTCDate() + 1);
+  const daysInRange = Math.round(
+    (rangeEndExclusive.getTime() - rangeStart.getTime()) / 86_400_000
+  );
 
   const account = await prisma.account.findUnique({
     where: { id: params.id },
@@ -211,7 +214,10 @@ export default async function AccountDetailPage({
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Reels</div>
             <div className="mt-1 text-xl font-semibold">
-              <PostsTargetValue actual={postRows.length} />
+              <PostsTargetValue
+                target={account.dailyPostsPlan * daysInRange}
+                actual={postRows.length}
+              />
             </div>
           </CardContent>
         </Card>

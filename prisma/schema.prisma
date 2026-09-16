@@ -33,6 +33,21 @@ model Creator {
 
   accounts         Account[]
   managementFields CreatorManagementField[]
+  recoveryAccounts CreatorRecoveryAccount[]
+}
+
+// An account currently banned/suspended and working through recovery —
+// tracked separately from Account because it's often not (or no longer) a
+// trackable Instagram profile, just a name + status note.
+model CreatorRecoveryAccount {
+  id        String   @id @default(cuid())
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  username  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([creatorId])
 }
 
 // Free-form cells for the per-Creator "Management Overview" sheet (Instagram
@@ -65,6 +80,12 @@ model Account {
   // SLT.bio link-in-bio integration — the connected page's slug, used to
   // match incoming /v1/events against this account.
   sltBioPageSlug String?
+
+  // Set on the Creator Management Overview page. Feeds the "Soll" side of
+  // the Posts stat card on the account/Creator overview pages (target =
+  // dailyPostsPlan × days in the selected range).
+  dailyPostsPlan Int     @default(0)
+  notes          String?
 
   posts        Post[]
   dailyMetrics AccountDailyMetric[]

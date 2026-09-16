@@ -37,6 +37,9 @@ export default async function CreatorDetailPage({
   // See app/accounts/[id]/page.tsx for why this is exclusive.
   const rangeEndExclusive = new Date(rangeEnd);
   rangeEndExclusive.setUTCDate(rangeEndExclusive.getUTCDate() + 1);
+  const daysInRange = Math.round(
+    (rangeEndExclusive.getTime() - rangeStart.getTime()) / 86_400_000
+  );
 
   const creator = await prisma.creator.findUnique({
     where: { id: params.id },
@@ -133,6 +136,11 @@ export default async function CreatorDetailPage({
 
   const viewsInRange = postRows.reduce((sum, row) => sum + (row.metric?.views ?? 0), 0);
 
+  const postsTarget = creator.accounts.reduce(
+    (sum, a) => sum + a.dailyPostsPlan * daysInRange,
+    0
+  );
+
   const topReels = [...postRows]
     .sort((a, b) => (b.metric?.views ?? 0) - (a.metric?.views ?? 0))
     .slice(0, 10);
@@ -221,7 +229,7 @@ export default async function CreatorDetailPage({
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Posts</div>
             <div className="mt-1 text-xl font-semibold">
-              <PostsTargetValue actual={postRows.length} />
+              <PostsTargetValue target={postsTarget} actual={postRows.length} />
             </div>
           </CardContent>
         </Card>
