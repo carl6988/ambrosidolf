@@ -15,6 +15,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EditAccountPlanDialog } from "@/components/creators/edit-account-plan-dialog";
 import { AddRecoveryAccountDialog } from "@/components/creators/add-recovery-account-dialog";
 import { DeleteRecoveryAccountButton } from "@/components/creators/delete-recovery-account-button";
+import { PhoneLoginDialog } from "@/components/creators/phone-login-dialog";
+import { DeletePhoneLoginButton } from "@/components/creators/delete-phone-login-button";
+import { MaskedCell } from "@/components/creators/masked-cell";
+
+function profileLink(media: string | null, username: string | null): string | null {
+  if (!username) return null;
+  const m = media?.toLowerCase() ?? "";
+  if (m.includes("instagram")) return `https://instagram.com/${username}`;
+  if (m.includes("twitter") || m === "x") return `https://x.com/${username}`;
+  return null;
+}
 
 export default async function CreatorManagementPage({
   params,
@@ -29,6 +40,7 @@ export default async function CreatorManagementPage({
         select: { id: true, username: true, dailyPostsPlan: true, notes: true },
       },
       recoveryAccounts: { orderBy: { createdAt: "desc" } },
+      phoneLogins: { orderBy: { createdAt: "asc" } },
     },
   });
 
@@ -185,6 +197,110 @@ export default async function CreatorManagementPage({
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-8 overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center justify-between bg-primary/10 px-4 py-2">
+          <span className="text-sm font-semibold tracking-wide text-primary">
+            LOGIN OVERVIEW
+          </span>
+          <PhoneLoginDialog creatorId={creator.id} />
+        </div>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[1400px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="whitespace-nowrap">Phone #</TableHead>
+                <TableHead className="whitespace-nowrap">Phone Owner</TableHead>
+                <TableHead className="whitespace-nowrap">Media</TableHead>
+                <TableHead className="whitespace-nowrap">Account on Phone</TableHead>
+                <TableHead className="whitespace-nowrap">Account Password</TableHead>
+                <TableHead className="whitespace-nowrap">Gmail / Apple ID</TableHead>
+                <TableHead className="whitespace-nowrap">Gmail / Apple ID Password</TableHead>
+                <TableHead className="whitespace-nowrap">Gmail created on Phone</TableHead>
+                <TableHead className="whitespace-nowrap">SIM PIN</TableHead>
+                <TableHead className="whitespace-nowrap">Note / Action</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {creator.phoneLogins.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center text-sm text-muted-foreground">
+                    Noch keine Logins erfasst.
+                  </TableCell>
+                </TableRow>
+              )}
+              {creator.phoneLogins.map((login) => {
+                const link = profileLink(login.media, login.accountUsername);
+                return (
+                  <TableRow key={login.id}>
+                    <TableCell className="whitespace-nowrap font-medium">
+                      {login.phoneLabel}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{login.phoneOwner || "–"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{login.media || "–"}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {login.accountUsername ? (
+                        link ? (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            {login.accountUsername}
+                          </a>
+                        ) : (
+                          login.accountUsername
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">–</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <MaskedCell value={login.accountPassword} />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{login.gmailAppleId || "–"}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <MaskedCell value={login.gmailApplePassword} />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {login.gmailCreatedOnPhone || "–"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <MaskedCell value={login.simPin} />
+                    </TableCell>
+                    <TableCell className="max-w-[240px] whitespace-normal text-sm text-muted-foreground">
+                      {login.note || "–"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center">
+                        <PhoneLoginDialog
+                          creatorId={creator.id}
+                          existing={{
+                            id: login.id,
+                            phoneLabel: login.phoneLabel,
+                            phoneOwner: login.phoneOwner,
+                            media: login.media,
+                            accountUsername: login.accountUsername,
+                            accountPassword: login.accountPassword,
+                            gmailAppleId: login.gmailAppleId,
+                            gmailApplePassword: login.gmailApplePassword,
+                            gmailCreatedOnPhone: login.gmailCreatedOnPhone,
+                            simPin: login.simPin,
+                            note: login.note,
+                          }}
+                        />
+                        <DeletePhoneLoginButton id={login.id} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );

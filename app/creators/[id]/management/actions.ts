@@ -75,3 +75,55 @@ export async function deleteRecoveryAccount(
   revalidatePath(`/creators/${recoveryAccount.creatorId}/management`);
   return { success: true };
 }
+
+function textOrNull(formData: FormData, field: string): string | null {
+  const value = String(formData.get(field) ?? "").trim();
+  return value || null;
+}
+
+export async function upsertPhoneLogin(formData: FormData): Promise<ActionResult> {
+  const id = String(formData.get("id") ?? "").trim();
+  const creatorId = String(formData.get("creatorId") ?? "").trim();
+  const phoneLabel = String(formData.get("phoneLabel") ?? "").trim();
+
+  if (!creatorId || !phoneLabel) {
+    return { error: "Bitte mindestens eine Phone-Bezeichnung angeben." };
+  }
+
+  const data = {
+    phoneLabel,
+    phoneOwner: textOrNull(formData, "phoneOwner"),
+    media: textOrNull(formData, "media"),
+    accountUsername: textOrNull(formData, "accountUsername"),
+    accountPassword: textOrNull(formData, "accountPassword"),
+    gmailAppleId: textOrNull(formData, "gmailAppleId"),
+    gmailApplePassword: textOrNull(formData, "gmailApplePassword"),
+    gmailCreatedOnPhone: textOrNull(formData, "gmailCreatedOnPhone"),
+    simPin: textOrNull(formData, "simPin"),
+    note: textOrNull(formData, "note"),
+  };
+
+  if (id) {
+    await prisma.creatorPhoneLogin.update({ where: { id }, data });
+  } else {
+    await prisma.creatorPhoneLogin.create({ data: { creatorId, ...data } });
+  }
+
+  revalidatePath(`/creators/${creatorId}/management`);
+  return { success: true };
+}
+
+export async function deletePhoneLogin(phoneLoginId: string): Promise<ActionResult> {
+  const phoneLogin = await prisma.creatorPhoneLogin.findUnique({
+    where: { id: phoneLoginId },
+    select: { creatorId: true },
+  });
+  if (!phoneLogin) {
+    return { error: "Nicht gefunden." };
+  }
+
+  await prisma.creatorPhoneLogin.delete({ where: { id: phoneLoginId } });
+
+  revalidatePath(`/creators/${phoneLogin.creatorId}/management`);
+  return { success: true };
+}

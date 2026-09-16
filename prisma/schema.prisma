@@ -34,6 +34,7 @@ model Creator {
   accounts         Account[]
   managementFields CreatorManagementField[]
   recoveryAccounts CreatorRecoveryAccount[]
+  phoneLogins      CreatorPhoneLogin[]
 }
 
 // An account currently banned/suspended and working through recovery —
@@ -46,6 +47,29 @@ model CreatorRecoveryAccount {
   username  String
   note      String?
   createdAt DateTime @default(now())
+
+  @@index([creatorId])
+}
+
+// One row per physical device used to manage a Creator's accounts — mirrors
+// the team's existing "Login Overview" spreadsheet. Credentials are stored
+// as plain text (same as the spreadsheet today) since this is an internal
+// ops reference, not an auth mechanism; the page only masks them by default.
+model CreatorPhoneLogin {
+  id                  String   @id @default(cuid())
+  creatorId           String
+  creator             Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  phoneLabel          String
+  phoneOwner          String?
+  media               String?
+  accountUsername     String?
+  accountPassword     String?
+  gmailAppleId        String?
+  gmailApplePassword  String?
+  gmailCreatedOnPhone String?
+  simPin              String?
+  note                String?
+  createdAt           DateTime @default(now())
 
   @@index([creatorId])
 }
