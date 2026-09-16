@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum MediaType {
+  REEL
+  PHOTO
+  CAROUSEL
+}
+
+model Creator {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  accounts Account[]
+}
+
+model Account {
+  id          String   @id @default(cuid())
+  creatorId   String
+  creator     Creator  @relation(fields: [creatorId], references: [id])
+  username    String   @unique
+  displayName String
+  profileUrl  String
+  createdAt   DateTime @default(now())
+
+  // SLT.bio link-in-bio integration — the connected page's slug, used to
+  // match incoming /v1/events against this account.
+  sltBioPageSlug String?
+
+  posts        Post[]
+  dailyMetrics AccountDailyMetric[]
+  linkClicks   LinkClickImport[]
+
+  @@index([creatorId])
+}
+
+model Post {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id])
+  externalPostId String?
+  url            String
+  caption        String?
+  mediaType      MediaType
+  postedAt       DateTime
+  thumbnailUrl   String?
+  createdAt      DateTime  @default(now())
+
+  dailyMetrics PostDailyMetric[]
+  linkClicks   LinkClickImport[]
+
+  @@unique([accountId, externalPostId])
+  @@index([accountId])
+}
+
+model PostDailyMetric {
+  id       String   @id @default(cuid())
+  postId   String
+  post     Post     @relation(fields: [postId], references: [id])
+  date     DateTime
+  views    Int
+  likes    Int
+  comments Int
+  // Instagram doesn't expose these publicly (scraping APIs included) — only
+  // the account owner sees them in their own Insights. Left nullable so an
+  // API sync can populate views/likes/comments without having to fake these.
+  shares   Int?
+  saves    Int?
+
+  @@unique([postId, date])
+}
+
+model AccountDailyMetric {
+  id         String   @id @default(cuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id])
+  date       DateTime
+  followers  Int
+  totalViews Int?
+
+  @@unique([accountId, date])
+}
+
+model LinkClickImport {
+  id           String   @id @default(cuid())
+  accountId    String?
+  account      Account? @relation(fields: [accountId], references: [id])
+  postId       String?
+  post         Post?    @relation(fields: [postId], references: [id])
+  date         DateTime
+  clicks       Int
+  uniqueClicks Int?
+  source       String   @default("slt.bio")
+  rawPayload   String?
+  importedAt   DateTime @default(now())
+
+  @@unique([accountId, date, source])
+  @@index([accountId])
+  @@index([postId])
+}
