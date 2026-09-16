@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatDelta, formatNumber, formatPercent } from "@/lib/format";
 import { RANGE_OPTIONS, resolveDateRange, type RangeKey } from "@/lib/date-range";
+import { normalizeDate } from "@/lib/date";
 import {
   Table,
   TableBody,
@@ -20,6 +21,9 @@ import { PostsTargetValue } from "@/components/accounts/posts-target-value";
 import { ViewsChart } from "@/components/accounts/views-chart";
 import { PostsTable, type PostTableRow } from "@/components/accounts/posts-table";
 import { StatsRangePicker } from "@/components/accounts/stats-range-picker";
+import { SyncCreatorButton } from "@/components/creators/sync-creator-button";
+import { syncInstagramForCreator } from "@/app/creators/instagram-sync-actions";
+import { AutoSyncOnMount } from "@/components/shared/auto-sync-on-mount";
 
 export default async function CreatorDetailPage({
   params,
@@ -88,6 +92,18 @@ export default async function CreatorDetailPage({
     (sum, m) => sum + m.followers,
     0
   );
+
+  // If any account hasn't synced today yet, kick off a Creator-wide sync in
+  // the background on first render — at most once/day, since HikerAPI is
+  // pay-per-request (see instagram-sync-run.ts).
+  const today = normalizeDate(new Date().toISOString());
+  const syncedTodayAccountIds = new Set(
+    latestMetricsPerAccount
+      .filter((m) => m.date.getTime() === today.getTime())
+      .map((m) => m.accountId)
+  );
+  const needsSync = creator.accounts.some((a) => !syncedTodayAccountIds.has(a.id));
+  const boundSync = needsSync ? syncInstagramForCreator.bind(null, creator.id) : null;
 
   const rangeMetrics = await prisma.accountDailyMetric.findMany({
     where: { account: { creatorId: creator.id }, date: { gte: rangeStart, lt: rangeEndExclusive } },
@@ -166,6 +182,12 @@ export default async function CreatorDetailPage({
         Zurück zu Creators
       </Link>
 
+      {boundSync && (
+        <div className="mt-4">
+          <AutoSyncOnMount action={boundSync} />
+        </div>
+      )}
+
       <div className="mt-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -183,11 +205,14 @@ export default async function CreatorDetailPage({
             {creator.accounts.length === 1 ? "" : "s"}
           </p>
         </div>
-        <StatsRangePicker
-          currentRange={rangeKey}
-          currentFrom={searchParams.from ?? ""}
-          currentTo={searchParams.to ?? ""}
-        />
+        <div className="flex items-start gap-2">
+          <SyncCreatorButton creatorId={creator.id} />
+          <StatsRangePicker
+            currentRange={rangeKey}
+            currentFrom={searchParams.from ?? ""}
+            currentTo={searchParams.to ?? ""}
+          />
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

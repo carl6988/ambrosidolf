@@ -4,6 +4,7 @@ import { ArrowLeft, Layers } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatDelta, formatNumber } from "@/lib/format";
 import { RANGE_OPTIONS, resolveDateRange, type RangeKey } from "@/lib/date-range";
+import { normalizeDate } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ViewsChart } from "@/components/accounts/views-chart";
@@ -11,6 +12,8 @@ import { PostsTable, type PostTableRow } from "@/components/accounts/posts-table
 import { AddAccountMetricDialog } from "@/components/accounts/add-account-metric-dialog";
 import { ConnectSltBioDialog } from "@/components/accounts/connect-slt-bio-dialog";
 import { SyncInstagramButton } from "@/components/accounts/sync-instagram-button";
+import { syncInstagramAccount } from "@/app/accounts/instagram-sync-actions";
+import { AutoSyncOnMount } from "@/components/shared/auto-sync-on-mount";
 import { StatsRangePicker } from "@/components/accounts/stats-range-picker";
 import { PostsTargetValue } from "@/components/accounts/posts-target-value";
 
@@ -68,6 +71,13 @@ export default async function AccountDetailPage({
     where: { accountId: account.id },
     orderBy: { date: "desc" },
   });
+
+  // If nobody has synced this account yet today, kick off a sync in the
+  // background on first render — at most once/day per account, since
+  // HikerAPI is pay-per-request (see instagram-sync-run.ts).
+  const today = normalizeDate(new Date().toISOString());
+  const needsSync = !latestMetricEver || latestMetricEver.date.getTime() !== today.getTime();
+  const boundSync = needsSync ? syncInstagramAccount.bind(null, account.id) : null;
 
   const rangeLabel =
     rangeKey === "custom"
@@ -140,6 +150,12 @@ export default async function AccountDetailPage({
         <ArrowLeft className="h-4 w-4" />
         Zurück zu {account.creator.name}
       </Link>
+
+      {boundSync && (
+        <div className="mt-4">
+          <AutoSyncOnMount action={boundSync} />
+        </div>
+      )}
 
       <div className="mt-4 flex items-start justify-between">
         <div>
