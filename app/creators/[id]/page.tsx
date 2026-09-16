@@ -15,6 +15,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { DeleteAccountButton } from "@/components/accounts/delete-account-button";
+import { PostsTargetValue } from "@/components/accounts/posts-target-value";
 import { ViewsChart } from "@/components/accounts/views-chart";
 import { PostsTable, type PostTableRow } from "@/components/accounts/posts-table";
 import { StatsRangePicker } from "@/components/accounts/stats-range-picker";
@@ -211,8 +212,8 @@ export default async function CreatorDetailPage({
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Posts</div>
-            <div className="mt-1 text-xl font-semibold tabular-nums">
-              {formatNumber(postRows.length)}
+            <div className="mt-1 text-xl font-semibold">
+              <PostsTargetValue actual={postRows.length} />
             </div>
           </CardContent>
         </Card>

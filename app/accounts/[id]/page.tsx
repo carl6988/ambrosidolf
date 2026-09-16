@@ -12,6 +12,7 @@ import { AddAccountMetricDialog } from "@/components/accounts/add-account-metric
 import { ConnectSltBioDialog } from "@/components/accounts/connect-slt-bio-dialog";
 import { SyncInstagramButton } from "@/components/accounts/sync-instagram-button";
 import { StatsRangePicker } from "@/components/accounts/stats-range-picker";
+import { PostsTargetValue } from "@/components/accounts/posts-target-value";
 
 export default async function AccountDetailPage({
   params,
@@ -209,8 +210,8 @@ export default async function AccountDetailPage({
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Reels</div>
-            <div className="mt-1 text-xl font-semibold tabular-nums">
-              {formatNumber(postRows.length)}
+            <div className="mt-1 text-xl font-semibold">
+              <PostsTargetValue actual={postRows.length} />
             </div>
           </CardContent>
         </Card>
