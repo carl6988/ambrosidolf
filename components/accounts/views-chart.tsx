@@ -204,6 +204,7 @@ export function ViewsChart({
               dataKey={`${p.accountId}_donePct`}
               stackId={p.accountId}
               fill={p.color}
+              fillOpacity={0.45}
               barSize={barSize}
             />
           ))}
@@ -214,6 +215,7 @@ export function ViewsChart({
               dataKey={`${p.accountId}_missingPct`}
               stackId={p.accountId}
               fill={MISSING_POSTS_COLOR}
+              fillOpacity={0.45}
               barSize={barSize}
             />
           ))}
@@ -222,7 +224,7 @@ export function ViewsChart({
             type="monotone"
             dataKey="views"
             stroke="hsl(var(--primary))"
-            strokeWidth={2}
+            strokeWidth={3}
             dot={false}
           />
         </ComposedChart>
