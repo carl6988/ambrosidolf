@@ -1,5 +1,7 @@
 "use client";
 
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bar,
   ComposedChart,
@@ -13,15 +15,18 @@ import {
 import type { TooltipContentProps } from "recharts";
 import { formatDateShort, formatNumber } from "@/lib/format";
 import { MISSING_POSTS_COLOR } from "@/lib/profile-colors";
+import { updateAccountChartSettings } from "@/app/accounts/actions";
 
 export type ProfileSeries = {
   accountId: string;
   label: string;
   color: string;
+  visible: boolean;
 };
 
 export type DataPoint = {
   date: string;
+  timestamp: number;
   views: number | null;
   // Dynamic per-profile fields, only present when `profiles` is passed:
   // `${accountId}_donePct` / `${accountId}_missingPct` (0-100, together
@@ -37,16 +42,17 @@ function ChartTooltip({
 }: TooltipContentProps & { profiles?: ProfileSeries[] }) {
   if (!active || !payload || payload.length === 0) return null;
   const viewsEntry = payload.find((p) => p.dataKey === "views");
+  const visibleProfiles = profiles?.filter((p) => p.visible) ?? [];
 
   return (
     <div className="rounded-[var(--radius)] border border-border bg-popover p-3 text-popover-foreground shadow-sm">
-      <p className="text-sm font-medium">{formatDateShort(String(label))}</p>
+      <p className="text-sm font-medium">{formatDateShort(Number(label))}</p>
       {viewsEntry && (
         <p className="mt-1 text-sm">{formatNumber(Number(viewsEntry.value))} Views</p>
       )}
-      {profiles && profiles.length > 0 && (
+      {visibleProfiles.length > 0 && (
         <div className="mt-2 space-y-1 border-t border-border pt-2">
-          {profiles.map((p) => {
+          {visibleProfiles.map((p) => {
             const row = payload[0]?.payload as Record<string, number> | undefined;
             const donePct = row?.[`${p.accountId}_donePct`];
             const missingPct = row?.[`${p.accountId}_missingPct`];
@@ -69,6 +75,59 @@ function ChartTooltip({
   );
 }
 
+function ProfileLegend({ profiles }: { profiles: ProfileSeries[] }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+
+  function toggleVisible(accountId: string, visible: boolean) {
+    startTransition(async () => {
+      await updateAccountChartSettings(accountId, { showInChart: visible });
+      router.refresh();
+    });
+  }
+
+  function changeColor(accountId: string, color: string) {
+    startTransition(async () => {
+      await updateAccountChartSettings(accountId, { chartColor: color });
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+      {profiles.map((p) => (
+        <label
+          key={p.accountId}
+          className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+        >
+          <input
+            type="checkbox"
+            checked={p.visible}
+            onChange={(e) => toggleVisible(p.accountId, e.target.checked)}
+            className="h-3 w-3 cursor-pointer accent-primary"
+          />
+          <input
+            type="color"
+            value={p.color}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => changeColor(p.accountId, e.target.value)}
+            title={`Farbe für ${p.label}`}
+            className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded-full border-none bg-transparent p-0"
+          />
+          <span className={p.visible ? "" : "line-through opacity-60"}>{p.label}</span>
+        </label>
+      ))}
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ backgroundColor: MISSING_POSTS_COLOR }}
+        />
+        Posts-Ziel verfehlt
+      </span>
+    </div>
+  );
+}
+
 export function ViewsChart({
   data,
   profiles,
@@ -84,34 +143,20 @@ export function ViewsChart({
     );
   }
 
+  const visibleProfiles = profiles?.filter((p) => p.visible) ?? [];
+
   return (
     <div>
-      {profiles && profiles.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-          {profiles.map((p) => (
-            <span key={p.accountId} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: p.color }}
-              />
-              {p.label}
-            </span>
-          ))}
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: MISSING_POSTS_COLOR }}
-            />
-            Posts-Ziel verfehlt
-          </span>
-        </div>
-      )}
+      {profiles && profiles.length > 0 && <ProfileLegend profiles={profiles} />}
       <ResponsiveContainer width="100%" height={256}>
-        <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
           <XAxis
-            dataKey="date"
-            tickFormatter={(value: string) => formatDateShort(value)}
+            dataKey="timestamp"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            ticks={data.map((d) => d.timestamp)}
+            tickFormatter={(value: number) => formatDateShort(value)}
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
@@ -126,14 +171,14 @@ export function ViewsChart({
             tickFormatter={(value: number) => formatNumber(value)}
             width={64}
           />
-          {profiles && profiles.length > 0 && (
-            <YAxis yAxisId="pct" domain={[0, 100]} hide />
+          {visibleProfiles.length > 0 && (
+            <YAxis yAxisId="pct" orientation="right" domain={[0, 100]} hide />
           )}
           <Tooltip
             content={(props) => <ChartTooltip {...props} profiles={profiles} />}
             cursor={{ fill: "hsl(var(--muted))", opacity: 0.2 }}
           />
-          {profiles?.map((p) => (
+          {visibleProfiles.map((p) => (
             <Bar
               key={`${p.accountId}-done`}
               yAxisId="pct"
@@ -143,7 +188,7 @@ export function ViewsChart({
               maxBarSize={14}
             />
           ))}
-          {profiles?.map((p) => (
+          {visibleProfiles.map((p) => (
             <Bar
               key={`${p.accountId}-missing`}
               yAxisId="pct"

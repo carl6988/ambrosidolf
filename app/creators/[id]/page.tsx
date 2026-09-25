@@ -6,18 +6,10 @@ import { formatDate, formatDelta, formatNumber, formatPercent } from "@/lib/form
 import { RANGE_OPTIONS, resolveDateRange, type RangeKey } from "@/lib/date-range";
 import { normalizeDate } from "@/lib/date";
 import { profileColor } from "@/lib/profile-colors";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
-import { DeleteAccountButton } from "@/components/accounts/delete-account-button";
+import { SortableProfileTable } from "@/components/creators/sortable-profile-table";
 import { PostsTargetValue } from "@/components/accounts/posts-target-value";
 import { ViewsChart, type DataPoint } from "@/components/accounts/views-chart";
 import { PostsTable, type PostTableRow } from "@/components/accounts/posts-table";
@@ -50,7 +42,7 @@ export default async function CreatorDetailPage({
     where: { id: params.id },
     include: {
       accounts: {
-        orderBy: { createdAt: "desc" },
+        orderBy: { sortOrder: "asc" },
         include: {
           _count: { select: { posts: true } },
           dailyMetrics: { orderBy: { date: "desc" }, take: 1 },
@@ -180,7 +172,8 @@ export default async function CreatorDetailPage({
   const chartProfiles = creator.accounts.map((account, index) => ({
     accountId: account.id,
     label: account.username,
-    color: profileColor(index),
+    color: account.chartColor || profileColor(index),
+    visible: account.showInChart,
   }));
 
   // One point per day in the selected range (not just days with posts) so
@@ -194,6 +187,7 @@ export default async function CreatorDetailPage({
     const day = cursor.toISOString().slice(0, 10);
     const point: DataPoint = {
       date: day,
+      timestamp: cursor.getTime(),
       views: viewsByPostDay.get(day) ?? 0,
     };
     for (const account of creator.accounts) {
@@ -336,64 +330,17 @@ export default async function CreatorDetailPage({
         <AddAccountDialog creatorId={creator.id} />
       </div>
 
-      <div className="mt-4 rounded-lg border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Username</TableHead>
-              <TableHead className="text-right">Follower aktuell</TableHead>
-              <TableHead className="text-right">Views (24h)</TableHead>
-              <TableHead className="text-right">Posts</TableHead>
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {creator.accounts.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="text-center text-sm text-muted-foreground"
-                >
-                  Noch keine Accounts für diesen Creator angelegt.
-                </TableCell>
-              </TableRow>
-            )}
-            {creator.accounts.map((account) => {
-              const latest = account.dailyMetrics[0];
-              return (
-                <TableRow key={account.id}>
-                  <TableCell>
-                    <Link
-                      href={`/accounts/${account.id}`}
-                      className="font-medium text-foreground hover:text-primary hover:underline"
-                    >
-                      {account.username}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">
-                      {account.displayName}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatNumber(latest?.followers)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatNumber(latest?.totalViews)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatNumber(account._count.posts)}
-                  </TableCell>
-                  <TableCell>
-                    <DeleteAccountButton
-                      accountId={account.id}
-                      username={account.username}
-                    />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <SortableProfileTable
+        creatorId={creator.id}
+        rows={creator.accounts.map((account) => ({
+          id: account.id,
+          username: account.username,
+          displayName: account.displayName,
+          followers: account.dailyMetrics[0]?.followers ?? null,
+          views24h: account.dailyMetrics[0]?.totalViews ?? null,
+          postsCount: account._count.posts,
+        }))}
+      />
 
       <PostsTable
         accountId={creator.accounts[0]?.id ?? ""}

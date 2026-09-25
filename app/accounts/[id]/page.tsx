@@ -139,7 +139,7 @@ export default async function AccountDetailPage({
   }
   const chartData = Array.from(viewsByPostDay.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, views]) => ({ date, views }));
+    .map(([date, views]) => ({ date, timestamp: new Date(date).getTime(), views }));
 
   return (
     <div className="p-8">

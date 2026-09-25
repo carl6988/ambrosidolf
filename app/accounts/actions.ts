@@ -60,6 +60,38 @@ export async function deleteAccount(accountId: string): Promise<ActionResult> {
   return { success: true };
 }
 
+export async function updateAccountChartSettings(
+  accountId: string,
+  data: { showInChart?: boolean; chartColor?: string }
+): Promise<ActionResult> {
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    select: { creatorId: true },
+  });
+  if (!account) {
+    return { error: "Account nicht gefunden." };
+  }
+
+  await prisma.account.update({ where: { id: accountId }, data });
+
+  revalidatePath(`/creators/${account.creatorId}`);
+  return { success: true };
+}
+
+export async function reorderAccounts(
+  creatorId: string,
+  orderedAccountIds: string[]
+): Promise<ActionResult> {
+  await prisma.$transaction(
+    orderedAccountIds.map((id, index) =>
+      prisma.account.update({ where: { id }, data: { sortOrder: index } })
+    )
+  );
+
+  revalidatePath(`/creators/${creatorId}`);
+  return { success: true };
+}
+
 export async function updateAccountSltBio(
   formData: FormData
 ): Promise<ActionResult> {

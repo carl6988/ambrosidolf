@@ -112,6 +112,14 @@ model Account {
   dailyPostsPlan Int     @default(0)
   notes          String?
 
+  // Creator overview page: per-profile Daily-Posts-bar overlay on the
+  // Views chart. chartColor null falls back to the palette-by-index
+  // default (see lib/profile-colors.ts). sortOrder drives the Profile
+  // table's drag-to-reorder order.
+  chartColor  String?
+  showInChart Boolean @default(true)
+  sortOrder   Int     @default(0)
+
   posts        Post[]
   dailyMetrics AccountDailyMetric[]
   linkClicks   LinkClickImport[]

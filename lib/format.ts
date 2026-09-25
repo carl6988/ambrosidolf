@@ -28,8 +28,8 @@ export function formatDate(date: Date | string): string {
   }).format(d);
 }
 
-export function formatDateShort(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+export function formatDateShort(date: Date | string | number): string {
+  const d = typeof date === "object" ? date : new Date(date);
   return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
     month: "2-digit",
