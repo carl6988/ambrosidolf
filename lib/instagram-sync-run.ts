@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeDate } from "@/lib/date";
 import {
   fetchInstagramMediaDetail,
-  fetchInstagramPosts,
+  fetchInstagramPostsChunk,
   fetchInstagramProfile,
   HikerApiInsufficientFundsError,
   HikerApiNotFoundError,
@@ -47,10 +47,23 @@ export type InstagramSyncSummary = {
 };
 export type InstagramSyncResult = { error: string } | { summary: InstagramSyncSummary };
 
+// Routine sync covers the last 30 calendar days, not a fixed post count —
+// a fixed "latest 30 reels" cap would under-cover a high-frequency poster
+// (their 30 most recent reels might span only a week) while a low-frequency
+// account could reach back months on a single page. Paginating by date
+// keeps every account's chart comparable across the same date ranges.
+const ROUTINE_SYNC_LOOKBACK_DAYS = 30;
+// Safety cap on pages fetched per account, distinct from the on-demand full
+// backfill's FULL_SYNC_MAX_PAGES=50 (app/accounts/instagram-sync-actions.ts)
+// — 30 days of even a very active daily-poster account shouldn't need more
+// than a handful of pages.
+const ROUTINE_SYNC_MAX_PAGES = 10;
+
 /**
- * Routine sync for one account: latest 30 reels. Shared by the account
- * page's manual button and the daily cron job that loops over every
- * account — same core, same behavior either way.
+ * Routine sync for one account: all reels from the last 30 days. Shared by
+ * the account page's manual button, the Creator-wide sync button, and the
+ * daily cron job that loops over every account — same core, same behavior
+ * either way.
  */
 export async function runInstagramAccountSync(
   accountId: string
@@ -65,11 +78,25 @@ export async function runInstagramAccountSync(
     const today = normalizeDate(new Date().toISOString());
     await syncInstagramProfile(accountId, profile, today);
 
-    const posts = await fetchInstagramPosts(String(profile.pk));
+    const cutoff = new Date(today);
+    cutoff.setUTCDate(cutoff.getUTCDate() - ROUTINE_SYNC_LOOKBACK_DAYS);
 
     const tally: BatchTally = { reelsScraped: 0, reelsCreated: 0, skippedNonReels: 0 };
-    for (const media of posts) {
-      await processMedia(accountId, media, today, tally);
+    let cursor: string | undefined;
+    for (let page = 0; page < ROUTINE_SYNC_MAX_PAGES; page++) {
+      const { items, nextCursor } = await fetchInstagramPostsChunk(String(profile.pk), cursor);
+      if (items.length === 0) break;
+
+      for (const media of items) {
+        await processMedia(accountId, media, today, tally);
+      }
+
+      // Pages come back newest-first, so once the oldest item on this page
+      // is past the cutoff, every later page would be too — stop here.
+      const oldest = items[items.length - 1];
+      if (new Date(oldest.taken_at) < cutoff) break;
+      if (!nextCursor) break;
+      cursor = nextCursor;
     }
 
     return { summary: { followers: profile.follower_count, ...tally } };

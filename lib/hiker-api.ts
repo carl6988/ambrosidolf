@@ -80,17 +80,6 @@ export async function fetchInstagramProfile(username: string): Promise<HikerUser
   return hikerRequest<HikerUser>("/v1/user/by/username", { username });
 }
 
-export async function fetchInstagramPosts(
-  userId: string,
-  amount = 30
-): Promise<HikerMedia[]> {
-  const data = await hikerRequest<HikerMedia[]>("/v1/user/medias", {
-    user_id: String(userId),
-    amount: String(amount),
-  });
-  return Array.isArray(data) ? data : [];
-}
-
 /**
  * Fetches accurate view/play counts for one post. Needed because the list
  * endpoint's view_count/play_count are unreliable (see HikerMedia notes).
@@ -103,8 +92,9 @@ export async function fetchInstagramMediaDetail(mediaId: string): Promise<HikerM
  * One page of the cursor-paginated media list — confirmed live to return a
  * 2-tuple [items, nextCursor], matching the OpenAPI spec exactly (unlike
  * some other fields). nextCursor is null once there's nothing more to page.
- * Used only for the on-demand full backfill ("Ganzen Account laden"), not
- * the routine sync — each page costs one request, same as /v1/user/medias.
+ * Used by both the routine 30-day sync (lib/instagram-sync-run.ts, bounded
+ * by a date cutoff) and the on-demand full backfill ("Ganzen Account
+ * laden", bounded by a page count) — each page costs one request.
  */
 export async function fetchInstagramPostsChunk(
   userId: string,
