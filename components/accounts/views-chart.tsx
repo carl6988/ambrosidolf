@@ -145,11 +145,29 @@ export function ViewsChart({
 
   const visibleProfiles = profiles?.filter((p) => p.visible) ?? [];
 
+  // Bars are centered on their day's x position, so the first/last day's
+  // bar cluster would otherwise overflow past the plot edges (over the
+  // Y-axis labels on the left, clipped by the card on the right). Reserve
+  // exactly half a cluster's width as XAxis padding on each side so
+  // everything stays inside the plot regardless of how many profiles are
+  // currently visible.
+  const barSize = 10;
+  const barGap = 3;
+  const clusterWidth =
+    visibleProfiles.length > 0
+      ? visibleProfiles.length * barSize + Math.max(0, visibleProfiles.length - 1) * barGap
+      : 0;
+  const edgePadding = clusterWidth > 0 ? clusterWidth / 2 + 6 : 4;
+
   return (
     <div>
       {profiles && profiles.length > 0 && <ProfileLegend profiles={profiles} />}
       <ResponsiveContainer width="100%" height={256}>
-        <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          barGap={barGap}
+        >
           <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey="timestamp"
@@ -157,6 +175,7 @@ export function ViewsChart({
             domain={["dataMin", "dataMax"]}
             ticks={data.map((d) => d.timestamp)}
             tickFormatter={(value: number) => formatDateShort(value)}
+            padding={{ left: edgePadding, right: edgePadding }}
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
@@ -185,7 +204,7 @@ export function ViewsChart({
               dataKey={`${p.accountId}_donePct`}
               stackId={p.accountId}
               fill={p.color}
-              maxBarSize={14}
+              barSize={barSize}
             />
           ))}
           {visibleProfiles.map((p) => (
@@ -195,7 +214,7 @@ export function ViewsChart({
               dataKey={`${p.accountId}_missingPct`}
               stackId={p.accountId}
               fill={MISSING_POSTS_COLOR}
-              maxBarSize={14}
+              barSize={barSize}
             />
           ))}
           <Line
