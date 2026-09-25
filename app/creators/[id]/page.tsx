@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate, formatDelta, formatNumber, formatPercent } from "@/lib/format";
 import { RANGE_OPTIONS, resolveDateRange, type RangeKey } from "@/lib/date-range";
 import { normalizeDate } from "@/lib/date";
+import { profileColor } from "@/lib/profile-colors";
 import {
   Table,
   TableBody,
@@ -18,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { DeleteAccountButton } from "@/components/accounts/delete-account-button";
 import { PostsTargetValue } from "@/components/accounts/posts-target-value";
-import { ViewsChart } from "@/components/accounts/views-chart";
+import { ViewsChart, type DataPoint } from "@/components/accounts/views-chart";
 import { PostsTable, type PostTableRow } from "@/components/accounts/posts-table";
 import { StatsRangePicker } from "@/components/accounts/stats-range-picker";
 import { SyncCreatorButton } from "@/components/creators/sync-creator-button";
@@ -161,16 +162,49 @@ export default async function CreatorDetailPage({
     .sort((a, b) => (b.metric?.views ?? 0) - (a.metric?.views ?? 0))
     .slice(0, 10);
 
-  // Same rows as the Top Reels table, just grouped by post day instead of
-  // listed per-post.
+  // Views grouped by post day, and post counts grouped by (account, day) —
+  // the latter feeds the per-profile Daily Posts bars overlaid on the chart
+  // below, so a views dip can be visually checked against "did they even
+  // post that day" at a glance.
   const viewsByPostDay = new Map<string, number>();
+  const postsByAccountDay = new Map<string, Map<string, number>>();
   for (const row of postRows) {
     const day = row.postedAt.slice(0, 10);
     viewsByPostDay.set(day, (viewsByPostDay.get(day) ?? 0) + (row.metric?.views ?? 0));
+    const accountId = row.account!.id;
+    const byDay = postsByAccountDay.get(accountId) ?? new Map<string, number>();
+    byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    postsByAccountDay.set(accountId, byDay);
   }
-  const chartData = Array.from(viewsByPostDay.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, views]) => ({ date, views }));
+
+  const chartProfiles = creator.accounts.map((account, index) => ({
+    accountId: account.id,
+    label: account.username,
+    color: profileColor(index),
+  }));
+
+  // One point per day in the selected range (not just days with posts) so
+  // a day with zero posts still shows an all-red bar instead of vanishing.
+  const chartData: DataPoint[] = [];
+  for (
+    let cursor = new Date(rangeStart);
+    cursor.getTime() < rangeEndExclusive.getTime();
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    const day = cursor.toISOString().slice(0, 10);
+    const point: DataPoint = {
+      date: day,
+      views: viewsByPostDay.get(day) ?? 0,
+    };
+    for (const account of creator.accounts) {
+      if (account.dailyPostsPlan <= 0) continue;
+      const count = postsByAccountDay.get(account.id)?.get(day) ?? 0;
+      const donePct = Math.min(count / account.dailyPostsPlan, 1) * 100;
+      point[`${account.id}_donePct`] = donePct;
+      point[`${account.id}_missingPct`] = 100 - donePct;
+    }
+    chartData.push(point);
+  }
 
   return (
     <div className="p-8">
@@ -293,7 +327,7 @@ export default async function CreatorDetailPage({
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">
             Views über Zeit · {rangeLabel}
           </h2>
-          <ViewsChart data={chartData} />
+          <ViewsChart data={chartData} profiles={chartProfiles} />
         </CardContent>
       </Card>
 
